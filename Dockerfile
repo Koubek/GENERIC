@@ -21,8 +21,10 @@ RUN DEL c:\license.txt
 RUN DEL c:\start.ps1
 RUN DEL c:\dockerfile
 
-RUN PowerShell -Command Add-WindowsFeature Web-Server,web-AppInit,web-Asp-Net45,web-Windows-Auth,web-Dyn-Compression
+RUN Add-WindowsFeature Web-Server,web-AppInit,web-Asp-Net45,web-Windows-Auth,web-Dyn-Compression
 
+# HealthCheck should reflect in this case multiple services (if hosting severals in the container).
+# This actually breaks the best practices given by Docker.
 HEALTHCHECK CMD [ "sqlcmd", "-Q", "select 1" ]
 
 EXPOSE 1433 80 443 7045-7049

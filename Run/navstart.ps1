@@ -132,13 +132,15 @@ if ($databaseServer -ne "_" -and $databaseInstance -ne "_" -and $databaseName -n
 if ($genericImage) {
 
     # run local installers if present
-    Get-ChildItem "C:\NAVDVD\Installers" | Where-Object { $_.PSIsContainer } | % {
-        Get-ChildItem $_.FullName | Where-Object { $_.PSIsContainer } | % {
-            $dir = $_.FullName
-            Get-ChildItem (Join-Path $dir "*.msi") | % {
-                $filepath = $_.FullName
-                Write-Host "Installing $filepath"
-                Start-Process -FilePath $filepath -WorkingDirectory $dir -ArgumentList "/qn /norestart" -Wait
+    if (Test-Path "C:\NAVDVD\Installers" -PathType Container) {
+        Get-ChildItem "C:\NAVDVD\Installers" | Where-Object { $_.PSIsContainer } | % {
+            Get-ChildItem $_.FullName | Where-Object { $_.PSIsContainer } | % {
+                $dir = $_.FullName
+                Get-ChildItem (Join-Path $dir "*.msi") | % {
+                    $filepath = $_.FullName
+                    Write-Host "Installing $filepath"
+                    Start-Process -FilePath $filepath -WorkingDirectory $dir -ArgumentList "/qn /norestart" -Wait
+                }
             }
         }
     }

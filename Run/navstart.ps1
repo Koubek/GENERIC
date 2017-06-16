@@ -6,6 +6,7 @@ $databaseServer = $env:databaseServer
 $databaseInstance = $env:databaseInstance
 $databaseName = $env:databaseName
 $buildingImage = ($env:buildingImage -eq "Y")
+$windowsAuth = ($env:WindowsAuth -eq "Y")
 
 # start the SQL Server
 Write-Host "Starting SQL Server"

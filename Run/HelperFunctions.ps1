@@ -155,3 +155,19 @@ function Set-WebClientRegistryKeys
     Set-ItemProperty -Path $keyPath -Name Path -Value "$WebClientFolder\" -Force | Out-Null
     Set-ItemProperty -Path $keyPath -Name Name -Value $SiteName -Force | Out-Null
 }
+
+function Get-gMSAName
+{
+    <#
+        This function will return gMSA account name.
+        All NT AUTHORITY\NETWORK SERVICES or NT AUTHORITY\SYSTEM will act as gMSA to be able interact with the domain resources.
+    #>
+
+    [CmdletBinding()]
+    param(        
+    )
+
+    $gMSA = ((Get-WmiObject -Class Win32_NTDomain) | Where-Object { $_.DomainName -ne $null }).DomainName + "\" + $env:COMPUTERNAME + "$"
+
+    return $gMSA
+}

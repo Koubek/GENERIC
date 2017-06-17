@@ -13,15 +13,16 @@ ENV DatabaseServer _
 ENV DatabaseInstance _
 ENV DatabaseName _
 
+# Install the prerequisites first to be able reuse the cache when changing only the scripts.
+RUN Add-WindowsFeature Web-Server,web-AppInit,web-Asp-Net45,web-Windows-Auth,web-Dyn-Compression
+
 WORKDIR /
 COPY Install /Install/
 COPY Run /Run/
 
-RUN DEL c:\license.txt
-RUN DEL c:\start.ps1
-RUN DEL c:\dockerfile
-
-RUN Add-WindowsFeature Web-Server,web-AppInit,web-Asp-Net45,web-Windows-Auth,web-Dyn-Compression
+RUN DEL c:\license.txt; \
+    DEL c:\start.ps1; \
+    DEL c:\dockerfile
 
 # HealthCheck should reflect in this case multiple services (if hosting severals in the container).
 # This actually breaks the best practices given by Docker.

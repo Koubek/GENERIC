@@ -3,9 +3,11 @@ if ($auth -eq "Windows") {
         New-LocalUser -AccountNeverExpires -FullName $username -Name $username -Password (ConvertTo-SecureString -AsPlainText -String $password -Force) -ErrorAction Ignore | Out-Null
         Add-LocalGroupMember -Group administrators -Member $username -ErrorAction Ignore
     }
-    if (!(Get-NAVServerUser -ServerInstance NAV | Where-Object { $_.UserName.EndsWith("'\$username") })) {
-        New-NavServerUser -ServerInstance NAV -WindowsAccount $username
-        New-NavServerUserPermissionSet -ServerInstance NAV -WindowsAccount $username -PermissionSetId SUPER
+    if ($username -ne "_") {
+        if (!(Get-NAVServerUser -ServerInstance NAV | Where-Object { $_.UserName.EndsWith("'\$username") })) {
+            New-NavServerUser -ServerInstance NAV -WindowsAccount $username
+            New-NavServerUserPermissionSet -ServerInstance NAV -WindowsAccount $username -PermissionSetId SUPER
+        }
     }
 } else {
     $username = "admin"

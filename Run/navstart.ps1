@@ -12,7 +12,7 @@ $windowsAuth = ($env:WindowsAuth -eq "Y")
 Write-Host "Starting SQL Server"
 Start-Service -Name 'MSSQL$SQLEXPRESS'
 
-if ($env:WindowsAuth -eq "Y") {
+if ($windowsAuth) {
     $auth = "Windows"
     $useSSL = $false
     $protocol = "http://"
@@ -196,7 +196,7 @@ if (!$buildingImage) {
     $developerServicesKeyExists = ($customConfig.SelectSingleNode("//appSettings/add[@key='DeveloperServicesPort']") -ne $null)
     if ($developerServicesKeyExists) {
         $customConfig.SelectSingleNode("//appSettings/add[@key='DeveloperServicesPort']").Value = "7049"
-        $customConfig.SelectSingleNode("//appSettings/add[@key='DeveloperServicesEnabled']").Value = ($auth -eq "Windows").ToString().ToLower()
+        $customConfig.SelectSingleNode("//appSettings/add[@key='DeveloperServicesEnabled']").Value = $windowsAuth.ToString().ToLower()
     }
     if ($useSSL) {
         $CustomConfig.SelectSingleNode("//appSettings/add[@key='ServicesCertificateThumbprint']").Value = "$thumbprint"
@@ -243,5 +243,5 @@ if (!$buildingImage) {
     Write-Host "Container Hostname  : $hostname"
     Write-Host "Web Client          : $publicWebBaseUrl"
 
-    . C:\Run\SetupUsers.ps1
+    . C:\Run\SetupNavUsers.ps1
 }

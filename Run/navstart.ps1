@@ -5,8 +5,37 @@ $bakfile = $env:bakfile
 $databaseServer = $env:databaseServer
 $databaseInstance = $env:databaseInstance
 $databaseName = $env:databaseName
-$buildingImage = ($env:buildingImage -eq "Y")
+
 $windowsAuth = ($env:WindowsAuth -eq "Y")
+
+# This script is multi-purpose
+#
+# $buildingImage is true when called during build of specific NAV image (with CRONUS Demo Database and CRONUS license)
+# $restartingInstance is true when called due to Docker restart of a running image
+# $runningGenericImage is true when running a generic image with NAVDVD on share
+# $runningSpecificImage is true when running a specific image (which had buildingImage set true true during image build)
+#
+$buildingImage = ($env:buildingImage -eq "Y")
+if ($buildingImage) { Write-Host "Building Image" }
+
+$restartingInstance = $false
+if (Test-Path "C:\Program Files\Microsoft Dynamics NAV" -PathType Container) {
+    $CustomConfigFile = Join-Path (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Service").FullName "CustomSettings.config"
+    $CustomConfig = [xml](Get-Content $CustomConfigFile)
+    $restartingInstance = ($CustomConfig.SelectSingleNode("//appSettings/add[@key='PublicWebBaseUrl']").Value -ne "")
+}
+if ($restartingInstance) { Write-Host "Restarting Instance" }
+
+$runningGenericImage = !$restartingInstance -and !$buildingImage -and (!(Test-Path "C:\Program Files\Microsoft Dynamics NAV" -PathType Container))
+if ($runningGenericImage) { Write-Host "Running Generic Image" }
+
+$runningSpecificImage = (!$restartingInstance) -and (!$runningGenericImage) -and (!$buildingImage)
+if ($runningSpecificImage) { Write-Host "Running Specific Image" }
+
+if ($buildingImage + $restartingInstance + $runningGenericImage + $runningSpecificImage -ne 1) {
+    Write-Error "ERROR: Cannot determine reason for running script."
+    exit 1
+}
 
 # start the SQL Server
 Write-Host "Starting SQL Server"
@@ -30,13 +59,17 @@ if (!(Test-Path "C:\NAVDVD" -PathType Container)) {
     exit 1
 }
 
-Write-Host "Using $auth Authentication"
-Write-Host "Installing Url Rewrite"
-start-process C:\Install\rewrite_amd64.msi -ArgumentList "/quiet /qn /passive" -Wait
+if ($runningGenericImage -or $runningSpecificImage) 
+{
+    Write-Host "Using $auth Authentication"
 
-# Copy Service Tier in place
-$genericImage = (!(Test-Path "C:\Program Files\Microsoft Dynamics NAV" -PathType Container))
-if ($genericImage) {
+    # re-installing Url rewrite when running the image means that we can avoid iisreset (which is much slower)
+    Write-Host "Installing Url Rewrite"
+    start-process C:\Install\rewrite_amd64.msi -ArgumentList "/quiet /qn /passive" -Wait
+}
+
+# Copy Service Tier in place if we are running a Generic Image or Building a specific image
+if ($runningGenericImage -or $buildingImage) {
     Write-Host "Copy Service Tier"
     Copy-Item -Path "C:\NAVDVD\ServiceTier\Program Files" -Destination "C:\" -Recurse -Force
 
@@ -50,13 +83,23 @@ $WebClientFolder = (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Web Clie
 . C:\RUN\New-SelfSignedCertificateEx.ps1
 Import-Module "$ServiceTierFolder\Microsoft.Dynamics.Nav.Management.psm1"
 
+if ($restartingInstance) {
+    Write-Host "Wait for NAV Service Tier to start"
+    while ((Get-service -name 'MicrosoftDynamicsNavServer$NAV').Status -ne 'Running') { 
+        Start-Sleep -Seconds 5
+    }
+    Write-Host "NAV Service Tier started"
+}
+
+
 # License file
 $licenseOk = $false
-if ($licensefile -eq "_") 
-{
+if ($restartingInstance) {
+    $licenseOk = $true
+} elseif ($licensefile -eq "_") {
     Write-Host "Using CRONUS license file"
     $licensefile = "$ServiceTierFolder\Cronus.flf"
-    if (!$genericImage) { 
+    if ($runningSpecificImage) { 
         $licenseOk = $true
     }
 } else {
@@ -65,7 +108,7 @@ if ($licensefile -eq "_")
         $licensefileurl = $licensefile
         $licensefile = "c:\Run\license.flf"
         Write-Host "Downloading license file '$licensefileurl'"
-        Invoke-WebRequest $licensefileurl -OutFile $licensefile
+        (New-Object System.Net.WebClient).DownloadFile($licensefileurl, $licensefile)
     } else {
         Write-Host "Using license file '$licensefile'"
         if (!(Test-Path -Path $licensefile -PathType Leaf)) {
@@ -77,60 +120,71 @@ if ($licensefile -eq "_")
 }
 
 # Database
-if ($databaseServer -ne "_" -and $databaseInstance -ne "_" -and $databaseName -ne "_") {
-    Write-Host "Using Database Connection $DatabaseServer\$DatabaseInstance [$DatabaseName]"
-} else {
-    if ($databaseServer -ne "_" -or $databaseInstance -ne "_" -or $databaseName -ne "_") {
+if (!$restartingInstance) {
+    if ($databaseServer -ne "_" -and $databaseInstance -ne "_" -and $databaseName -ne "_") {
+        
+        # Specific images will have database settings - no DB restore
+        Write-Host "Using Database Connection $DatabaseServer\$DatabaseInstance [$DatabaseName]"
+    
+    } else {
+
+        if ($runningSpecificImage) {
+        	Write-Error "ERROR: Database Connection not properly specified when running a pre-built image."
+            exit 1
+        }
+
+        if ($databaseServer -ne "_" -or $databaseInstance -ne "_" -or $databaseName -ne "_") {
         	Write-Error "ERROR: Database Connection only partly specified."
             Write-Error "Specifying Database settings to an existing database requires all parameters to be set"
             Write-Error "DatabaseServer, DatabaseInstance and DatabaseName"
             exit 1
-    }
-
-    $databaseFolder = "c:\databases"
-    New-Item -Path $databaseFolder -itemtype Directory | Out-Null
-    $databaseServer = "localhost"
-    $databaseInstance = "SQLEXPRESS"
-    $databaseName = ""
-    
-    if ($bakfile -eq "_") 
-    {
-        Write-Host "Using CRONUS Demo Database"
-    
-        $bak = (Get-ChildItem -Path "C:\NAVDVD\SQLDemoDatabase\CommonAppData\Microsoft\Microsoft Dynamics NAV\*\Database\*.bak")[0]
-        $databaseName = "CRONUS"
-        $databaseFile = $bak.FullName
-        
-    } else {
-    
-        if ($bakfile.StartsWith("https://") -or $bakfile.StartsWidth("http://"))
-        {
-            $bakfileurl = $bakfile
-            $databaseFile = "c:\Run\mydatabase.bak"
-            Write-Host "Downloading database backup file '$bakfileurl'"
-            Invoke-WebRequest $bakfileurl -OutFile $databaseFile
-    
-        } else {
-            Write-Host "Using Database .bak file '$bakfile'"
-            if (!(Test-Path -Path $bakfile -PathType Leaf)) {
-            	Write-Error "ERROR: Database Backup File not found."
-                Write-Error "The file must be uploaded to the container or available on a share."
-                exit 1
-            }
-            $databaseFile = $bakFile
         }
-        $databaseName = "mydatabase"
+    
+        $databaseFolder = "c:\databases"
+        New-Item -Path $databaseFolder -itemtype Directory | Out-Null
+        $databaseServer = "localhost"
+        $databaseInstance = "SQLEXPRESS"
+        $databaseName = ""
+        
+        if ($bakfile -eq "_") 
+        {
+            Write-Host "Using CRONUS Demo Database"
+        
+            $bak = (Get-ChildItem -Path "C:\NAVDVD\SQLDemoDatabase\CommonAppData\Microsoft\Microsoft Dynamics NAV\*\Database\*.bak")[0]
+            $databaseName = "CRONUS"
+            $databaseFile = $bak.FullName
+            
+        } else {
+        
+            if ($bakfile.StartsWith("https://") -or $bakfile.StartsWidth("http://"))
+            {
+                $bakfileurl = $bakfile
+                $databaseFile = "c:\Run\mydatabase.bak"
+                Write-Host "Downloading database backup file '$bakfileurl'"
+                (New-Object System.Net.WebClient).DownloadFile($bakfileurl, $databaseFile)
+        
+            } else {
+                Write-Host "Using Database .bak file '$bakfile'"
+                if (!(Test-Path -Path $bakfile -PathType Leaf)) {
+                	Write-Error "ERROR: Database Backup File not found."
+                    Write-Error "The file must be uploaded to the container or available on a share."
+                    exit 1
+                }
+                $databaseFile = $bakFile
+            }
+            $databaseName = "mydatabase"
+        }
+    
+        # Restore database
+        New-NAVDatabase -DatabaseServer $databaseServer `
+                        -DatabaseInstance $databaseInstance `
+                        -DatabaseName "$databaseName" `
+                        -FilePath "$databaseFile" `
+                        -DestinationPath "$databaseFolder" | Out-Null
     }
-
-    # Restore database
-    New-NAVDatabase -DatabaseServer $databaseServer `
-                    -DatabaseInstance $databaseInstance `
-                    -DatabaseName "$databaseName" `
-                    -FilePath "$databaseFile" `
-                    -DestinationPath "$databaseFolder" | Out-Null
 }
 
-if ($genericImage) {
+if ($runningGenericImage -or $buildingImage) {
 
     # run local installers if present
     if (Test-Path "C:\NAVDVD\Installers" -PathType Container) {
@@ -161,21 +215,9 @@ if ($genericImage) {
     $customConfig.SelectSingleNode("//appSettings/add[@key='DefaultClient']").Value = "Web"
     $customConfig.SelectSingleNode("//appSettings/add[@key='EnableTaskScheduler']").Value = "false"
     $CustomConfig.Save($CustomConfigFile)
-
-    if ($buildingImage) {
-
-        # Create Service
-        Write-Host "Create NAV Service Tier"
-        $serviceCredentials = New-Object System.Management.Automation.PSCredential ("NT AUTHORITY\SYSTEM", (new-object System.Security.SecureString))
-        New-Service -Name 'MicrosoftDynamicsNavServer$NAV' -BinaryPathName """$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe"" `$NAV /config ""$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe.config""" -DisplayName '"Microsoft Dynamics NAV Server [NAV]' -Description 'NAV' -StartupType auto -Credential $serviceCredentials -DependsOn @("HTTP") | Out-Null
-        Start-Service -Name 'MicrosoftDynamicsNavServer$NAV' -WarningAction SilentlyContinue
-        
-        Write-Host "Import NAV License"
-        Import-NAVServerLicense -LicenseFile $licensefile -ServerInstance 'NAV' -Database NavDatabase -WarningAction SilentlyContinue
-    }
 }
 
-if (!$buildingImage) {
+if ($runningGenericImage -or $runningSpecificImage) {
 
     $hostname = hostname
     Write-Host "Hostname: $hostname"
@@ -208,22 +250,29 @@ if (!$buildingImage) {
         }
     }
     $CustomConfig.Save($CustomConfigFile)
-    
-    if ($genericImage) {
-        # Create Service
-        Write-Host "Create NAV Service Tier"
-        $serviceCredentials = New-Object System.Management.Automation.PSCredential ("NT AUTHORITY\SYSTEM", (new-object System.Security.SecureString))
-        New-Service -Name 'MicrosoftDynamicsNavServer$NAV' -BinaryPathName """$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe"" `$NAV /config ""$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe.config""" -DisplayName '"Microsoft Dynamics NAV Server [NAV]' -Description 'NAV' -StartupType auto -Credential $serviceCredentials -DependsOn @("HTTP") | Out-Null
-        Start-Service -Name 'MicrosoftDynamicsNavServer$NAV' -WarningAction SilentlyContinue
-    } else {
-        Restart-Service -Name 'MicrosoftDynamicsNavServer$NAV' -WarningAction SilentlyContinue
-    }
-    
-    if (!$licenseOk) {
-        Write-Host "Import NAV License"
-        Import-NAVServerLicense -LicenseFile $licensefile -ServerInstance 'NAV' -Database NavDatabase -WarningAction SilentlyContinue
-    }
-    
+}
+ 
+if ($runningGenericImage -or $buildingImage) {
+    # Create NAV Service
+    Write-Host "Create NAV Service Tier"
+    $serviceCredentials = New-Object System.Management.Automation.PSCredential ("NT AUTHORITY\SYSTEM", (new-object System.Security.SecureString))
+    New-Service -Name 'MicrosoftDynamicsNavServer$NAV' -BinaryPathName """$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe"" `$NAV /config ""$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe.config""" -DisplayName '"Microsoft Dynamics NAV Server [NAV]' -Description 'NAV' -StartupType auto -Credential $serviceCredentials -DependsOn @("HTTP") | Out-Null
+    Start-Service -Name 'MicrosoftDynamicsNavServer$NAV' -WarningAction SilentlyContinue
+}
+
+if ($runningSpecificImage) {
+    # Restart NAV Service
+    Write-Host "Restart NAV Service Tier"
+    Restart-Service -Name 'MicrosoftDynamicsNavServer$NAV' -WarningAction SilentlyContinue
+}
+        
+if (!$licenseOk) {
+    Write-Host "Import NAV License"
+    Import-NAVServerLicense -LicenseFile $licensefile -ServerInstance 'NAV' -Database NavDatabase -WarningAction SilentlyContinue
+}
+
+if ($runningGenericImage -or $runningSpecificImage) {
+
     # Remove Default Web Site
     Get-WebSite | Remove-WebSite
     Get-WebBinding | Remove-WebBinding
@@ -238,10 +287,14 @@ if (!$buildingImage) {
     Write-Host "Create NAV Web Server Instance"
     New-NAVWebServerInstance -Server "localhost" -ClientServicesCredentialType $auth -ClientServicesPort 7046 -ServerInstance "NAV" -WebServerInstance "NAV"
     
+    . C:\Run\SetupNavUsers.ps1
+}
+
+if (!$buildingImage) {
     $ip = (Get-NetIPAddress | Where-Object { $_.AddressFamily -eq "IPv4" -and $_.IPAddress -ne "127.0.0.1" })[0].IPAddress
     Write-Host "Container IP Address: $ip"
     Write-Host "Container Hostname  : $hostname"
     Write-Host "Web Client          : $publicWebBaseUrl"
-
-    . C:\Run\SetupNavUsers.ps1
+    Write-Host 
+    Write-Host "Ready!"
 }

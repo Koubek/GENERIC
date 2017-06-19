@@ -1,3 +1,6 @@
+if ((Test-Path "c:\share" -PathType Container) -and (Test-Path "c:\share\mynavstart.ps1" -PathType Leaf)) {
+    . C:\Share\mynavstart.ps1
+}
 . C:\Run\navstart.ps1
 
 $lastCheck = (Get-Date).AddSeconds(-2) 

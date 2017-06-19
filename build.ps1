@@ -10,4 +10,4 @@ if (!(Test-Path (Join-Path $installPath 'rewrite_amd64.msi')))
 	Rename-Item (Join-Path $installPath 'rewrite_amd64.msi.tmp') (Join-Path $installPath 'rewrite_amd64.msi')
 }
 
-docker build -t navdocker.azurecr.io/nav/generic .
+docker build -t navdocker.azurecr.io/nav/generic $PSScriptRoot

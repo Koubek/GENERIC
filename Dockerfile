@@ -24,10 +24,8 @@ RUN DEL c:\license.txt; \
     DEL c:\start.ps1; \
     DEL c:\dockerfile
 
-# HealthCheck should reflect in this case multiple services (if hosting severals in the container).
-# This actually breaks the best practices given by Docker.
-HEALTHCHECK CMD [ "sqlcmd", "-Q", "select 1" ]
+HEALTHCHECK --interval=30s --timeout=10s CMD [ "powershell", ".\\Run\\HealthCheck.ps1" ]
 
 EXPOSE 1433 80 443 7045-7049
 
-CMD C:\Run\start.ps1
+CMD .\Run\start.ps1

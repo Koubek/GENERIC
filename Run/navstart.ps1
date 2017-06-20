@@ -20,7 +20,7 @@ if ($buildingImage) { Write-Host "Building Image" }
 
 $restartingInstance = $false
 if (Test-Path "C:\Program Files\Microsoft Dynamics NAV" -PathType Container) {
-    $CustomConfigFile = Join-Path (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Service").FullName "CustomSettings.config"
+    $CustomConfigFile = "C:\Program Files\Microsoft Dynamics NAV\Service\CustomSettings.config"
     $CustomConfig = [xml](Get-Content $CustomConfigFile)
     $restartingInstance = ($CustomConfig.SelectSingleNode("//appSettings/add[@key='PublicWebBaseUrl']").Value -ne "")
 }
@@ -70,14 +70,16 @@ if ($runningGenericImage -or $runningSpecificImage)
 
 # Copy Service Tier in place if we are running a Generic Image or Building a specific image
 if ($runningGenericImage -or $buildingImage) {
+    New-Item -Path "C:\Program Files\Microsoft Dynamics NAV" -ItemType Directory
+
     Write-Host "Copy Service Tier"
-    Copy-Item -Path "C:\NAVDVD\ServiceTier\Program Files" -Destination "C:\" -Recurse -Force
+    Copy-Item -Path "C:\NAVDVD\ServiceTier\Program Files\Microsoft Dynamics NAV\*\Service" -Destination "C:\Program Files\Microsoft Dynamics NAV\" -Recurse -Force
 
     Write-Host "Copy Web Client"
-    Copy-Item -Path "C:\NAVDVD\WebClient\Microsoft Dynamics NAV" -Destination "C:\Program Files\" -Recurse -Force
+    Copy-Item -Path "C:\NAVDVD\WebClient\Microsoft Dynamics NAV\*\Web Client" -Destination "C:\Program Files\Microsoft Dynamics NAV\" -Recurse -Force
 }
-$ServiceTierFolder = (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Service").FullName
-$WebClientFolder = (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Web Client")[0]
+$ServiceTierFolder = "C:\Program Files\Microsoft Dynamics NAV\Service"
+$WebClientFolder = "C:\Program Files\Microsoft Dynamics NAV\Web Client"
 
 . C:\RUN\HelperFunctions.ps1
 . C:\RUN\New-SelfSignedCertificateEx.ps1
@@ -202,7 +204,7 @@ if ($runningGenericImage -or $buildingImage) {
 
     Write-Host "Modify NAV Service Tier Config File for Docker"
     $PublicWebBaseUrl = "$protocol$hostname/NAV/WebClient"
-    $CustomConfigFile = Join-Path (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Service").FullName "CustomSettings.config"
+    $CustomConfigFile =  Join-Path $ServiceTierFolder "CustomSettings.config"
     $CustomConfig = [xml](Get-Content $CustomConfigFile)
     $customConfig.SelectSingleNode("//appSettings/add[@key='DatabaseServer']").Value = $databaseServer
     $customConfig.SelectSingleNode("//appSettings/add[@key='DatabaseInstance']").Value = $databaseInstance
@@ -229,7 +231,7 @@ if ($runningGenericImage -or $runningSpecificImage) {
     
     Write-Host "Modify NAV Service Tier Config File with Instance Specific Settings"
     $PublicWebBaseUrl = "$protocol$hostname/NAV/WebClient"
-    $CustomConfigFile = Join-Path (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Service").FullName "CustomSettings.config"
+    $CustomConfigFile =  Join-Path $ServiceTierFolder "CustomSettings.config"
     $CustomConfig = [xml](Get-Content $CustomConfigFile)
     $customConfig.SelectSingleNode("//appSettings/add[@key='ClientServicesCredentialType']").Value = $auth
     $CustomConfig.SelectSingleNode("//appSettings/add[@key='PublicWebBaseUrl']").Value = $PublicWebBaseUrl
@@ -280,9 +282,9 @@ if ($runningGenericImage -or $runningSpecificImage) {
     # Create Web Client
     Write-Host "Create Web Site"
     if ($useSSL) {
-        New-NavWebSite -WebClientFolder $WebClientFolder.FullName -inetpubFolder "C:\NAVDVD\WebClient\inetpub\" -AppPoolName "NavWebClientAppPool" -SiteName "NavWebClient" -Port $webClientPort -Auth $Auth -CertificateThumbprint $thumbprint
+        New-NavWebSite -WebClientFolder $WebClientFolder -inetpubFolder "C:\NAVDVD\WebClient\inetpub\" -AppPoolName "NavWebClientAppPool" -SiteName "NavWebClient" -Port $webClientPort -Auth $Auth -CertificateThumbprint $thumbprint
     } else {
-        New-NavWebSite -WebClientFolder $WebClientFolder.FullName -inetpubFolder "C:\NAVDVD\WebClient\inetpub\" -AppPoolName "NavWebClientAppPool" -SiteName "NavWebClient" -Port $webClientPort -Auth $Auth
+        New-NavWebSite -WebClientFolder $WebClientFolder -inetpubFolder "C:\NAVDVD\WebClient\inetpub\" -AppPoolName "NavWebClientAppPool" -SiteName "NavWebClient" -Port $webClientPort -Auth $Auth
     }
     Write-Host "Create NAV Web Server Instance"
     New-NAVWebServerInstance -Server "localhost" -ClientServicesCredentialType $auth -ClientServicesPort 7046 -ServerInstance "NAV" -WebServerInstance "NAV"

@@ -70,7 +70,7 @@ if ($runningGenericImage -or $runningSpecificImage)
 
 # Copy Service Tier in place if we are running a Generic Image or Building a specific image
 if ($runningGenericImage -or $buildingImage) {
-    New-Item -Path "C:\Program Files\Microsoft Dynamics NAV" -ItemType Directory
+    New-Item -Path "C:\Program Files\Microsoft Dynamics NAV" -ItemType Directory | Out-Null
 
     Write-Host "Copy Service Tier"
     Copy-Item -Path "C:\NAVDVD\ServiceTier\Program Files\Microsoft Dynamics NAV\*\Service" -Destination "C:\Program Files\Microsoft Dynamics NAV\" -Recurse -Force
@@ -215,7 +215,10 @@ if ($runningGenericImage -or $buildingImage) {
     $customConfig.SelectSingleNode("//appSettings/add[@key='SOAPServicesPort']").Value = "7047"
     $customConfig.SelectSingleNode("//appSettings/add[@key='ODataServicesPort']").Value = "7048"
     $customConfig.SelectSingleNode("//appSettings/add[@key='DefaultClient']").Value = "Web"
-    $customConfig.SelectSingleNode("//appSettings/add[@key='EnableTaskScheduler']").Value = "false"
+    $taskSchedulerKeyExists = ($customConfig.SelectSingleNode("//appSettings/add[@key='EnableTaskScheduler']") -ne $null)
+    if ($taskSchedulerKeyExists) {
+        $customConfig.SelectSingleNode("//appSettings/add[@key='EnableTaskScheduler']").Value = "false"
+    }
     $CustomConfig.Save($CustomConfigFile)
 }
 

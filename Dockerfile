@@ -4,6 +4,7 @@ LABEL maintainer "Freddy Kristiansen"
 
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 
+ENV Accept_eula _
 ENV username _
 ENV password _
 ENV licensefile _

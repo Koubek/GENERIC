@@ -10,17 +10,13 @@ if ($auth -eq "Windows") {
         }
     }
 } else {
-    $username = "admin"
+    if ($username -eq "_") { $username = "admin" }
     if (!(Get-NAVServerUser -ServerInstance NAV | Where-Object { $_.UserName -eq $username })) {
-        $password = Get-RandomPassword
-        New-NavServerUser -ServerInstance NAV -Username $username -Password (ConvertTo-SecureString -String $password -AsPlainText -Force)
+        $pwd = $password
+        if ($pwd -eq "_") { $pwd = Get-RandomPassword }
+        New-NavServerUser -ServerInstance NAV -Username $username -Password (ConvertTo-SecureString -String $pwd -AsPlainText -Force)
         New-NavServerUserPermissionSet -ServerInstance NAV -username $username -PermissionSetId SUPER
         Write-Host "NAV Admin Username  : $username"
-        Write-Host "NAV Admin Password  : $password"
+        Write-Host "NAV Admin Password  : $pwd"
     }
-}
-
-if ($password -ne "_") {
-    $sqlcmd = "ALTER LOGIN sa with password=" +"'" + $password + "'" + ";ALTER LOGIN sa ENABLE;"
-    & sqlcmd -Q $sqlcmd
 }

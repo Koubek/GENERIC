@@ -5,6 +5,7 @@ $bakfile = $env:bakfile
 $databaseServer = $env:databaseServer
 $databaseInstance = $env:databaseInstance
 $databaseName = $env:databaseName
+$Accept_eula = $env:Accept_eula
 
 $windowsAuth = ($env:WindowsAuth -eq "Y")
 
@@ -38,8 +39,8 @@ if ($buildingImage + $restartingInstance + $runningGenericImage + $runningSpecif
 }
 
 # start the SQL Server
-Write-Host "Starting SQL Server"
-Start-Service -Name 'MSSQL$SQLEXPRESS'
+Write-Host "Starting Local SQL Server"
+Start-Service -Name 'MSSQL$SQLEXPRESS' -ErrorAction Ignore
 
 if ($windowsAuth) {
     $auth = "Windows"
@@ -57,6 +58,13 @@ if (!(Test-Path "C:\NAVDVD" -PathType Container)) {
     Write-Error "ERROR: NAVDVD folder not found"
     Write-Error "You must map a folder on the host with the NAVDVD content"
     exit 1
+}
+
+if ($runningSpecificImage -and $Accept_eula -ne "Y" -And $Accept_eula -ne "y")
+{
+    Write-Error "ERROR: You must accept the End User License Agreement before this container can start."
+    Write-Error "Set the environment variable ACCEPT_EULA to 'Y' if you accept the agreement."
+    exit 1 
 }
 
 if ($runningGenericImage -or $runningSpecificImage) 
@@ -77,6 +85,9 @@ if ($runningGenericImage -or $buildingImage) {
 
     Write-Host "Copy Web Client"
     Copy-Item -Path "C:\NAVDVD\WebClient\Microsoft Dynamics NAV\*\Web Client" -Destination "C:\Program Files\Microsoft Dynamics NAV\" -Recurse -Force
+
+    Write-Host "Copy RTC Files"
+    Copy-Item -Path "C:\NAVDVD\RoleTailoredClient\program files\Microsoft Dynamics NAV\*\RoleTailored Client" -Destination "C:\Program Files (x86)\Microsoft Dynamics NAV\" -Recurse -Force
 }
 $ServiceTierFolder = "C:\Program Files\Microsoft Dynamics NAV\Service"
 $WebClientFolder = "C:\Program Files\Microsoft Dynamics NAV\Web Client"
@@ -224,6 +235,11 @@ if ($runningGenericImage -or $buildingImage) {
 
 if ($runningGenericImage -or $runningSpecificImage) {
 
+    if ($databaseServer -ne 'localhost' -or $databaseInstance -ne 'SQLEXPRESS') {
+        Write-Host "Stopping local SQL Server"
+        Stop-Service -Name 'MSSQL$SQLEXPRESS' -ErrorAction Ignore
+    }
+
     $hostname = hostname
     Write-Host "Hostname: $hostname"
     
@@ -291,7 +307,8 @@ if ($runningGenericImage -or $runningSpecificImage) {
     }
     Write-Host "Create NAV Web Server Instance"
     New-NAVWebServerInstance -Server "localhost" -ClientServicesCredentialType $auth -ClientServicesPort 7046 -ServerInstance "NAV" -WebServerInstance "NAV"
-    
+
+    . C:\Run\SetupSqlUsers.ps1
     . C:\Run\SetupNavUsers.ps1
 }
 
@@ -301,5 +318,5 @@ if (!$buildingImage) {
     Write-Host "Container Hostname  : $hostname"
     Write-Host "Web Client          : $publicWebBaseUrl"
     Write-Host 
-    Write-Host "Ready!"
+    Write-Host "Ready for connections!"
 }

@@ -1,13 +1,12 @@
-$username = $env:username
-$password = $env:password
-$licensefile = $env:licensefile
-$bakfile = $env:bakfile
-$databaseServer = $env:databaseServer
-$databaseInstance = $env:databaseInstance
-$databaseName = $env:databaseName
-$Accept_eula = $env:Accept_eula
+. (Join-Path $PSScriptRoot "HelperFunctions.ps1")
+. (Join-Path $PSScriptRoot "New-SelfSignedCertificateEx.ps1")
 
+. (Get-MyFilePath "SetupVariables.ps1")
+
+if ($databaseInstance -eq "Default") { $databaseInstance = "" }
 $windowsAuth = ($env:WindowsAuth -eq "Y")
+$myPath = Join-Path $PSScriptRoot "my"
+$navDvdPath = "C:\NAVDVD"
 
 # This script is multi-purpose
 #
@@ -40,7 +39,7 @@ if ($buildingImage + $restartingInstance + $runningGenericImage + $runningSpecif
 
 # start the SQL Server
 Write-Host "Starting Local SQL Server"
-Start-Service -Name 'MSSQL$SQLEXPRESS' -ErrorAction Ignore
+Start-Service -Name 'MSSQLSERVER' -ErrorAction Ignore
 
 if ($windowsAuth) {
     $auth = "Windows"
@@ -54,13 +53,15 @@ if ($windowsAuth) {
     $webClientPort = 443
 }
 
-if (!(Test-Path "C:\NAVDVD" -PathType Container)) {
-    Write-Error "ERROR: NAVDVD folder not found"
-    Write-Error "You must map a folder on the host with the NAVDVD content"
-    exit 1
+if ($runningGenericImage -or $buildingImage) {
+    if (!(Test-Path $navDvdPath -PathType Container)) {
+        Write-Error "ERROR: NAVDVD folder not found"
+        Write-Error "You must map a folder on the host with the NAVDVD content to $navDvdPath"
+        exit 1
+    }
 }
 
-if ($runningSpecificImage -and $Accept_eula -ne "Y" -And $Accept_eula -ne "y")
+if ($runningSpecificImage -and $Accept_eula -ne "Y")
 {
     Write-Error "ERROR: You must accept the End User License Agreement before this container can start."
     Write-Error "Set the environment variable ACCEPT_EULA to 'Y' if you accept the agreement."
@@ -81,19 +82,20 @@ if ($runningGenericImage -or $buildingImage) {
     New-Item -Path "C:\Program Files\Microsoft Dynamics NAV" -ItemType Directory | Out-Null
 
     Write-Host "Copy Service Tier"
-    Copy-Item -Path "C:\NAVDVD\ServiceTier\Program Files\Microsoft Dynamics NAV\*\Service" -Destination "C:\Program Files\Microsoft Dynamics NAV\" -Recurse -Force
+    Copy-Item -Path "$navDvdPath\ServiceTier\Program Files\Microsoft Dynamics NAV\*\Service" -Destination "C:\Program Files\Microsoft Dynamics NAV\" -Recurse -Force
 
     Write-Host "Copy Web Client"
-    Copy-Item -Path "C:\NAVDVD\WebClient\Microsoft Dynamics NAV\*\Web Client" -Destination "C:\Program Files\Microsoft Dynamics NAV\" -Recurse -Force
+    Copy-Item -Path "$navDvdPath\WebClient\Microsoft Dynamics NAV\*\Web Client" -Destination "C:\Program Files\Microsoft Dynamics NAV\" -Recurse -Force
+    Copy-Item -Path "$navDvdPath\WebClient\inetpub" -Destination $PSSCriptRoot -Recurse -Force
 
     Write-Host "Copy RTC Files"
-    Copy-Item -Path "C:\NAVDVD\RoleTailoredClient\program files\Microsoft Dynamics NAV\*\RoleTailored Client" -Destination "C:\Program Files (x86)\Microsoft Dynamics NAV\" -Recurse -Force
+    Copy-Item -Path "$navDvdPath\RoleTailoredClient\program files\Microsoft Dynamics NAV\*\RoleTailored Client" -Destination "C:\Program Files (x86)\Microsoft Dynamics NAV\" -Recurse -Force
+
+    Copy-Item -Path "$navDvdPath\*.vsix" -Destination $PSScriptRoot
 }
 $ServiceTierFolder = "C:\Program Files\Microsoft Dynamics NAV\Service"
 $WebClientFolder = "C:\Program Files\Microsoft Dynamics NAV\Web Client"
 
-. C:\RUN\HelperFunctions.ps1
-. C:\RUN\New-SelfSignedCertificateEx.ps1
 Import-Module "$ServiceTierFolder\Microsoft.Dynamics.Nav.Management.psm1"
 
 if ($restartingInstance) {
@@ -119,7 +121,7 @@ if ($restartingInstance) {
     if ($licensefile.StartsWith("https://") -or $licensefile.StartsWidth("http://"))
     {
         $licensefileurl = $licensefile
-        $licensefile = "c:\Run\license.flf"
+        $licensefile = (Join-Path $PSScriptRoot "license.flf")
         Write-Host "Downloading license file '$licensefileurl'"
         (New-Object System.Net.WebClient).DownloadFile($licensefileurl, $licensefile)
     } else {
@@ -156,14 +158,14 @@ if (!$restartingInstance) {
         $databaseFolder = "c:\databases"
         New-Item -Path $databaseFolder -itemtype Directory | Out-Null
         $databaseServer = "localhost"
-        $databaseInstance = "SQLEXPRESS"
+        $databaseInstance = ""
         $databaseName = ""
         
         if ($bakfile -eq "_") 
         {
             Write-Host "Using CRONUS Demo Database"
         
-            $bak = (Get-ChildItem -Path "C:\NAVDVD\SQLDemoDatabase\CommonAppData\Microsoft\Microsoft Dynamics NAV\*\Database\*.bak")[0]
+            $bak = (Get-ChildItem -Path "$navDvdPath\SQLDemoDatabase\CommonAppData\Microsoft\Microsoft Dynamics NAV\*\Database\*.bak")[0]
             $databaseName = "CRONUS"
             $databaseFile = $bak.FullName
             
@@ -172,7 +174,7 @@ if (!$restartingInstance) {
             if ($bakfile.StartsWith("https://") -or $bakfile.StartsWidth("http://"))
             {
                 $bakfileurl = $bakfile
-                $databaseFile = "c:\Run\mydatabase.bak"
+                $databaseFile = (Join-Path $PSScriptRoot "mydatabase.bak")
                 Write-Host "Downloading database backup file '$bakfileurl'"
                 (New-Object System.Net.WebClient).DownloadFile($bakfileurl, $databaseFile)
         
@@ -200,8 +202,8 @@ if (!$restartingInstance) {
 if ($runningGenericImage -or $buildingImage) {
 
     # run local installers if present
-    if (Test-Path "C:\NAVDVD\Installers" -PathType Container) {
-        Get-ChildItem "C:\NAVDVD\Installers" | Where-Object { $_.PSIsContainer } | % {
+    if (Test-Path "$navDvdPath\Installers" -PathType Container) {
+        Get-ChildItem "$navDvdPath\Installers" | Where-Object { $_.PSIsContainer } | % {
             Get-ChildItem $_.FullName | Where-Object { $_.PSIsContainer } | % {
                 $dir = $_.FullName
                 Get-ChildItem (Join-Path $dir "*.msi") | % {
@@ -235,42 +237,20 @@ if ($runningGenericImage -or $buildingImage) {
 
 if ($runningGenericImage -or $runningSpecificImage) {
 
-    if ($databaseServer -ne 'localhost' -or $databaseInstance -ne 'SQLEXPRESS') {
+    if ($databaseServer -ne 'localhost' -or $databaseInstance -ne '') {
         Write-Host "Stopping local SQL Server"
-        Stop-Service -Name 'MSSQL$SQLEXPRESS' -ErrorAction Ignore
+        Stop-Service -Name 'MSSQLSERVER' -ErrorAction Ignore
     }
 
     $hostname = hostname
-    Write-Host "Hostname: $hostname"
+    Write-Host "Hostname is $hostname"
     
     # Certificate
     if ($useSSL) {
-        . C:\RUN\SetupCertificate.ps1
+        . (Get-MyFilePath "SetupCertificate.ps1")
     }
     
-    Write-Host "Modify NAV Service Tier Config File with Instance Specific Settings"
-    $PublicWebBaseUrl = "$protocol$hostname/NAV/WebClient"
-    $CustomConfigFile =  Join-Path $ServiceTierFolder "CustomSettings.config"
-    $CustomConfig = [xml](Get-Content $CustomConfigFile)
-    $customConfig.SelectSingleNode("//appSettings/add[@key='ClientServicesCredentialType']").Value = $auth
-    $CustomConfig.SelectSingleNode("//appSettings/add[@key='PublicWebBaseUrl']").Value = $PublicWebBaseUrl
-    $CustomConfig.SelectSingleNode("//appSettings/add[@key='PublicSOAPBaseUrl']").Value = "$protocol${hostname}:7047/NAV/WS"
-    $CustomConfig.SelectSingleNode("//appSettings/add[@key='PublicODataBaseUrl']").Value = "$protocol${hostname}:7048/NAV/OData"
-    $developerServicesKeyExists = ($customConfig.SelectSingleNode("//appSettings/add[@key='DeveloperServicesPort']") -ne $null)
-    if ($developerServicesKeyExists) {
-        $customConfig.SelectSingleNode("//appSettings/add[@key='DeveloperServicesPort']").Value = "7049"
-        $customConfig.SelectSingleNode("//appSettings/add[@key='DeveloperServicesEnabled']").Value = $windowsAuth.ToString().ToLower()
-    }
-    if ($useSSL) {
-        $CustomConfig.SelectSingleNode("//appSettings/add[@key='ServicesCertificateThumbprint']").Value = "$thumbprint"
-        $CustomConfig.SelectSingleNode("//appSettings/add[@key='ServicesCertificateValidationEnabled']").Value = "false"
-        $CustomConfig.SelectSingleNode("//appSettings/add[@key='SOAPServicesSSLEnabled']").Value = "true"
-        $CustomConfig.SelectSingleNode("//appSettings/add[@key='ODataServicesSSLEnabled']").Value = "true"
-        if ($developerServicesKeyExists) {
-            $CustomConfig.SelectSingleNode("//appSettings/add[@key='DeveloperServicesSSLEnabled']").Value = "true"
-        }
-    }
-    $CustomConfig.Save($CustomConfigFile)
+    . (Get-MyFilePath "SetupConfiguration.ps1")
 }
  
 if ($runningGenericImage -or $buildingImage) {
@@ -292,6 +272,8 @@ if (!$licenseOk) {
     Import-NAVServerLicense -LicenseFile $licensefile -ServerInstance 'NAV' -Database NavDatabase -WarningAction SilentlyContinue
 }
 
+$wwwRootPath = Get-WWWRootPath
+$httpPath = Join-Path $wwwRootPath "http"
 if ($runningGenericImage -or $runningSpecificImage) {
 
     # Remove Default Web Site
@@ -301,22 +283,50 @@ if ($runningGenericImage -or $runningSpecificImage) {
     # Create Web Client
     Write-Host "Create Web Site"
     if ($useSSL) {
-        New-NavWebSite -WebClientFolder $WebClientFolder -inetpubFolder "C:\NAVDVD\WebClient\inetpub\" -AppPoolName "NavWebClientAppPool" -SiteName "NavWebClient" -Port $webClientPort -Auth $Auth -CertificateThumbprint $thumbprint
+        New-NavWebSite -WebClientFolder $WebClientFolder -inetpubFolder (Join-Path $PSScriptRoot "inetpub") -AppPoolName "NavWebClientAppPool" -SiteName "NavWebClient" -Port $webClientPort -Auth $Auth -CertificateThumbprint $thumbprint
     } else {
-        New-NavWebSite -WebClientFolder $WebClientFolder -inetpubFolder "C:\NAVDVD\WebClient\inetpub\" -AppPoolName "NavWebClientAppPool" -SiteName "NavWebClient" -Port $webClientPort -Auth $Auth
+        New-NavWebSite -WebClientFolder $WebClientFolder -inetpubFolder (Join-Path $PSScriptRoot "inetpub") -AppPoolName "NavWebClientAppPool" -SiteName "NavWebClient" -Port $webClientPort -Auth $Auth
     }
     Write-Host "Create NAV Web Server Instance"
     New-NAVWebServerInstance -Server "localhost" -ClientServicesCredentialType $auth -ClientServicesPort 7046 -ServerInstance "NAV" -WebServerInstance "NAV"
 
-    . C:\Run\SetupSqlUsers.ps1
-    . C:\Run\SetupNavUsers.ps1
+    Write-Host "Create http download site"
+    if ($useSSL) {
+        New-Item -Path $httpPath -ItemType Directory | Out-Null
+        New-Website -Name http -Port 80 -PhysicalPath $httpPath | Out-Null
+    } else {
+        New-Item -Path $httpPath -ItemType SymbolicLink -Target (Join-Path $wwwRootPath "NAVWebApplicationContainer") | Out-Null
+        Remove-Item -Path (Join-Path $httpPath "Default.htm") 
+    }
+
+    $webConfigFile = Join-Path $httpPath "web.config"
+    Copy-Item -Path (Join-Path $PSScriptRoot "web.config") -Destination $webConfigFile
+    get-item -Path $webConfigFile | % { $_.Attributes = "Hidden" }
+
+    . (Get-MyFilePath "SetupFiles.ps1")
+    . (Get-MyFilePath "SetupSqlUsers.ps1")
+    . (Get-MyFilePath "SetupNavUsers.ps1")
 }
 
-if (!$buildingImage) {
+if ($buildingImage) {
+    # NAVDVD content not needed after building specific image
+    Remove-Item -Path $navDvdPath -Recurse -Force
+} else {
     $ip = (Get-NetIPAddress | Where-Object { $_.AddressFamily -eq "IPv4" -and $_.IPAddress -ne "127.0.0.1" })[0].IPAddress
     Write-Host "Container IP Address: $ip"
     Write-Host "Container Hostname  : $hostname"
     Write-Host "Web Client          : $publicWebBaseUrl"
+
+    if (Test-Path -Path (Join-Path $httpPath "*.vsix")) {
+        Write-Host "Dev. Server         : http://$hostname"
+        Write-Host "Dev. ServerInstance : NAV"
+    }
+
+    Write-Host 
+    Write-Host "Files:"
+    Get-ChildItem -Path $httpPath -file | % {
+        Write-Host "http://$hostname/$($_.Name)"
+    }
     Write-Host 
     Write-Host "Ready for connections!"
 }

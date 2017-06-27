@@ -1,4 +1,4 @@
-FROM microsoft/mssql-server-windows-express
+FROM microsoft/mssql-server-windows-developer
 
 LABEL maintainer "Freddy Kristiansen"
 

@@ -19,15 +19,30 @@ function Get-RandomPassword {
      (randomchar $numbers))
 }
 
+function Get-MyFilePath
+(
+    [string]$FileName
+)
+{
+    $myPath = Join-Path $PSScriptRoot "my"
+    if ((Test-Path $myPath -PathType Container) -and (Test-Path (Join-Path $myPath $FileName) -PathType Leaf)) {
+        (Join-Path $myPath $FileName)
+    } else {
+        (Join-Path $PSScriptRoot $FileName)
+    }
+
+
+}
+
 function New-NavWebSite
 (
-    [string] $WebClientFolder,
-    [string] $inetpubFolder,
-    [string] $AppPoolName,
-    [string] $SiteName,
-    [string] $Port,
-    [string] $Auth,
-    [string] $CertificateThumbprint
+    [string]$WebClientFolder,
+    [string]$inetpubFolder,
+    [string]$AppPoolName,
+    [string]$SiteName,
+    [string]$Port,
+    [string]$Auth,
+    [string]$CertificateThumbprint
 )
 {
     Write-Verbose "Copy files to site container"

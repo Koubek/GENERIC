@@ -1,5 +1,5 @@
 try {
-    $CustomConfigFile = Join-Path (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Service").FullName "CustomSettings.config"
+    $CustomConfigFile = "C:\Program Files\Microsoft Dynamics NAV\Service\CustomSettings.config"
     $CustomConfig = [xml](Get-Content $CustomConfigFile)
     $publicWebBaseUrl = $CustomConfig.SelectSingleNode("//appSettings/add[@key='PublicWebBaseUrl']").Value
     

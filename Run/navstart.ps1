@@ -20,7 +20,7 @@ if ($buildingImage) { Write-Host "Building Image" }
 
 $restartingInstance = $false
 if (Test-Path "C:\Program Files\Microsoft Dynamics NAV" -PathType Container) {
-    $CustomConfigFile = "C:\Program Files\Microsoft Dynamics NAV\Service\CustomSettings.config"
+    $CustomConfigFile = Join-Path (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Service").FullName "CustomSettings.config"
     $CustomConfig = [xml](Get-Content $CustomConfigFile)
     $restartingInstance = ($CustomConfig.SelectSingleNode("//appSettings/add[@key='PublicWebBaseUrl']").Value -ne "")
 }
@@ -79,22 +79,21 @@ if ($runningGenericImage -or $runningSpecificImage)
 
 # Copy Service Tier in place if we are running a Generic Image or Building a specific image
 if ($runningGenericImage -or $buildingImage) {
-    New-Item -Path "C:\Program Files\Microsoft Dynamics NAV" -ItemType Directory | Out-Null
-
     Write-Host "Copy Service Tier"
-    Copy-Item -Path "$navDvdPath\ServiceTier\Program Files\Microsoft Dynamics NAV\*\Service" -Destination "C:\Program Files\Microsoft Dynamics NAV\" -Recurse -Force
+    Copy-Item -Path "C:\NAVDVD\ServiceTier\Program Files" -Destination "C:\" -Recurse -Force
 
     Write-Host "Copy Web Client"
-    Copy-Item -Path "$navDvdPath\WebClient\Microsoft Dynamics NAV\*\Web Client" -Destination "C:\Program Files\Microsoft Dynamics NAV\" -Recurse -Force
+    Copy-Item -Path "C:\NAVDVD\WebClient\Microsoft Dynamics NAV" -Destination "C:\Program Files\" -Recurse -Force
     Copy-Item -Path "$navDvdPath\WebClient\inetpub" -Destination $PSSCriptRoot -Recurse -Force
 
     Write-Host "Copy RTC Files"
-    Copy-Item -Path "$navDvdPath\RoleTailoredClient\program files\Microsoft Dynamics NAV\*\RoleTailored Client" -Destination "C:\Program Files (x86)\Microsoft Dynamics NAV\" -Recurse -Force
-
+    Copy-Item -Path "$navDvdPath\RoleTailoredClient\program files\Microsoft Dynamics NAV" -Destination "C:\Program Files (x86)\" -Recurse -Force
     Copy-Item -Path "$navDvdPath\*.vsix" -Destination $PSScriptRoot
 }
-$ServiceTierFolder = "C:\Program Files\Microsoft Dynamics NAV\Service"
-$WebClientFolder = "C:\Program Files\Microsoft Dynamics NAV\Web Client"
+
+$ServiceTierFolder = (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Service").FullName
+$RoleTailoredClientFolder = (Get-Item "C:\Program Files (x86)\Microsoft Dynamics NAV\*\RoleTailored Client").FullName
+$WebClientFolder = (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Web Client")[0]
 
 Import-Module "$ServiceTierFolder\Microsoft.Dynamics.Nav.Management.psm1"
 
@@ -251,6 +250,7 @@ if ($runningGenericImage -or $runningSpecificImage) {
     }
     
     . (Get-MyFilePath "SetupConfiguration.ps1")
+    . (Get-MyFilePath "SetupAddIns.ps1")
 }
  
 if ($runningGenericImage -or $buildingImage) {
@@ -303,7 +303,7 @@ if ($runningGenericImage -or $runningSpecificImage) {
     Copy-Item -Path (Join-Path $PSScriptRoot "web.config") -Destination $webConfigFile
     get-item -Path $webConfigFile | % { $_.Attributes = "Hidden" }
 
-    . (Get-MyFilePath "SetupFiles.ps1")
+    . (Get-MyFilePath "SetupFileShare.ps1")
     . (Get-MyFilePath "SetupSqlUsers.ps1")
     . (Get-MyFilePath "SetupNavUsers.ps1")
 }

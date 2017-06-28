@@ -1,9 +1,10 @@
-FROM microsoft/mssql-server-windows-express
+FROM microsoft/mssql-server-windows-developer
 
 LABEL maintainer "Freddy Kristiansen"
 
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 
+ENV Accept_eula _
 ENV username _
 ENV password _
 ENV licensefile _

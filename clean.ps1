@@ -1,4 +1,4 @@
-﻿throw "Do not run script!"
+﻿#throw "Do not run script!"
 
 # Remove orphan containers and images
 Get-ContainerImage | Where-Object { $_.RepoTags.Count -eq 1 -and $_.RepoTags[0] -eq "<none>:<none>" } | % {

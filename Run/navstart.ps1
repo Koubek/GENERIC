@@ -290,6 +290,18 @@ if ($runningGenericImage -or $runningSpecificImage) {
     Write-Host "Create NAV Web Server Instance"
     New-NAVWebServerInstance -Server "localhost" -ClientServicesCredentialType $auth -ClientServicesPort 7046 -ServerInstance "NAV" -WebServerInstance "NAV"
 
+    # Give Everyone access to resources
+    $ResourcesFolder = "$WebClientFolder".Replace('C:\Program Files\', 'C:\ProgramData\Microsoft\')
+    $user = New-Object System.Security.Principal.NTAccount("NT AUTHORITY\Everyone")
+    $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($user, "ReadAndExecute", "ContainerInherit, ObjectInherit", "None", "Allow")
+    $acl = Get-Acl -Path $ResourcesFolder
+    Set-Acl -Path $ResourcesFolder $acl
+    $acl = $null
+    $acl = Get-Acl -Path $ResourcesFolder
+    $acl.AddAccessRule($rule)
+    Set-Acl -Path $ResourcesFolder $acl
+    $acl = $null
+
     Write-Host "Create http download site"
     if ($useSSL) {
         New-Item -Path $httpPath -ItemType Directory | Out-Null
@@ -306,6 +318,7 @@ if ($runningGenericImage -or $runningSpecificImage) {
     . (Get-MyFilePath "SetupFileShare.ps1")
     . (Get-MyFilePath "SetupSqlUsers.ps1")
     . (Get-MyFilePath "SetupNavUsers.ps1")
+    . (Get-MyFilePath "AdditionalSetup.ps1")
 }
 
 if ($buildingImage) {
@@ -321,6 +334,8 @@ if ($buildingImage) {
         Write-Host "Dev. Server         : http://$hostname"
         Write-Host "Dev. ServerInstance : NAV"
     }
+
+    . (Get-MyFilePath "AdditionalOutput.ps1")
 
     Write-Host 
     Write-Host "Files:"

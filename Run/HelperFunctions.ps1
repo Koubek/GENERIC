@@ -73,19 +73,23 @@ function New-NavWebSite
     $appPool.recycling.logEventOnRecycle = "Time,Requests,Schedule,Memory,IsapiUnhealthy,OnDemand,ConfigChange,PrivateMemory"
     $appPool | Set-Item
 
+    # Give AppPool access to Web Client Folder
     $user = New-Object System.Security.Principal.NTAccount("IIS APPPOOL\$AppPoolName")
     $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($user,"ReadAndExecute", "ContainerInherit, ObjectInherit", "None", "Allow")
-
+    $acl = Get-Acl -Path $WebClientFolder
+    Set-Acl -Path $WebClientFolder $acl
+    $acl = $null
     $acl = Get-Acl -Path $WebClientFolder
     $acl.AddAccessRule($rule)
     Set-Acl -Path $WebClientFolder $acl
     $acl = $null
 
-    # Due to a bug in docker
+    # Give AppPool access to AppContainer
+    $user = New-Object System.Security.Principal.NTAccount("IIS APPPOOL\$AppPoolName")
+    $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($user,"ReadAndExecute", "ContainerInherit, ObjectInherit", "None", "Allow")
     $acl = Get-Acl -Path $appContainerFullPath
     Set-Acl -Path $appContainerFullPath $acl
     $acl = $null
-
     $acl = Get-Acl -Path $appContainerFullPath
     $acl.AddAccessRule($rule)
     Set-Acl -Path $appContainerFullPath $acl

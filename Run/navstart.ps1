@@ -38,9 +38,11 @@ if ($buildingImage + $restartingInstance + $runningGenericImage + $runningSpecif
     exit 1
 }
 
-# start the SQL Server
-Write-Host "Starting Local SQL Server"
-Start-Service -Name 'MSSQLSERVER' -ErrorAction Ignore
+if ($databaseServer -eq 'localhost') {
+    # start the SQL Server
+    Write-Host "Starting Local SQL Server"
+    Start-Service -Name 'MSSQLSERVER' -ErrorAction Ignore
+}
 
 if ($windowsAuth) {
     $auth = "Windows"

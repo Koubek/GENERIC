@@ -7,6 +7,7 @@ if ($databaseInstance -eq "Default") { $databaseInstance = "" }
 $windowsAuth = ($env:WindowsAuth -eq "Y")
 $myPath = Join-Path $PSScriptRoot "my"
 $navDvdPath = "C:\NAVDVD"
+$ServiceName = 'MicrosoftDynamicsNavServer$NAV'
 
 # This script is multi-purpose
 #
@@ -98,39 +99,7 @@ $WebClientFolder = (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Web Clie
 Import-Module "$ServiceTierFolder\Microsoft.Dynamics.Nav.Management.psm1"
 
 if ($restartingInstance) {
-    Write-Host "Wait for NAV Service Tier to start"
-    while ((Get-service -name 'MicrosoftDynamicsNavServer$NAV').Status -ne 'Running') { 
-        Start-Sleep -Seconds 5
-    }
-    Write-Host "NAV Service Tier started"
-}
-
-
-# License file
-$licenseOk = $false
-if ($restartingInstance) {
-    $licenseOk = $true
-} elseif ($licensefile -eq "_") {
-    Write-Host "Using CRONUS license file"
-    $licensefile = "$ServiceTierFolder\Cronus.flf"
-    if ($runningSpecificImage) { 
-        $licenseOk = $true
-    }
-} else {
-    if ($licensefile.StartsWith("https://") -or $licensefile.StartsWidth("http://"))
-    {
-        $licensefileurl = $licensefile
-        $licensefile = (Join-Path $PSScriptRoot "license.flf")
-        Write-Host "Downloading license file '$licensefileurl'"
-        (New-Object System.Net.WebClient).DownloadFile($licensefileurl, $licensefile)
-    } else {
-        Write-Host "Using license file '$licensefile'"
-        if (!(Test-Path -Path $licensefile -PathType Leaf)) {
-        	Write-Error "ERROR: License File not found."
-            Write-Error "The file must be uploaded to the container or available on a share."
-            exit 1
-        }
-    }
+    WaitForService -ServiceName $ServiceName
 }
 
 # Database
@@ -170,7 +139,7 @@ if (!$restartingInstance) {
             
         } else {
         
-            if ($bakfile.StartsWith("https://") -or $bakfile.StartsWidth("http://"))
+            if ($bakfile.StartsWith("https://") -or $bakfile.StartsWith("http://"))
             {
                 $bakfileurl = $bakfile
                 $databaseFile = (Join-Path $PSScriptRoot "mydatabase.bak")
@@ -252,25 +221,23 @@ if ($runningGenericImage -or $runningSpecificImage) {
     . (Get-MyFilePath "SetupConfiguration.ps1")
     . (Get-MyFilePath "SetupAddIns.ps1")
 }
- 
+
 if ($runningGenericImage -or $buildingImage) {
     # Create NAV Service
     Write-Host "Create NAV Service Tier"
     $serviceCredentials = New-Object System.Management.Automation.PSCredential ("NT AUTHORITY\SYSTEM", (new-object System.Security.SecureString))
-    New-Service -Name 'MicrosoftDynamicsNavServer$NAV' -BinaryPathName """$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe"" `$NAV /config ""$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe.config""" -DisplayName '"Microsoft Dynamics NAV Server [NAV]' -Description 'NAV' -StartupType auto -Credential $serviceCredentials -DependsOn @("HTTP") | Out-Null
-    Start-Service -Name 'MicrosoftDynamicsNavServer$NAV' -WarningAction SilentlyContinue
+    New-Service -Name $ServiceName -BinaryPathName """$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe"" `$NAV /config ""$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe.config""" -DisplayName '"Microsoft Dynamics NAV Server [NAV]' -Description 'NAV' -StartupType auto -Credential $serviceCredentials -DependsOn @("HTTP") | Out-Null
+    Write-Host "Start NAV Service Tier"
+    Start-Service -Name $ServiceName
 }
 
 if ($runningSpecificImage) {
     # Restart NAV Service
     Write-Host "Restart NAV Service Tier"
-    Restart-Service -Name 'MicrosoftDynamicsNavServer$NAV' -WarningAction SilentlyContinue
+    Restart-Service -Name $ServiceName
 }
-        
-if (!$licenseOk) {
-    Write-Host "Import NAV License"
-    Import-NAVServerLicense -LicenseFile $licensefile -ServerInstance 'NAV' -Database NavDatabase -WarningAction SilentlyContinue
-}
+
+. (Get-MyFilePath "SetupLicense.ps1")
 
 $wwwRootPath = Get-WWWRootPath
 $httpPath = Join-Path $wwwRootPath "http"

@@ -30,7 +30,18 @@ function Get-MyFilePath
     } else {
         (Join-Path $PSScriptRoot $FileName)
     }
+}
 
+function WaitForService
+(
+    [string]$ServiceName
+)
+{
+    Write-Host "Wait for $ServiceName to start"
+    while ((Get-service -name $ServiceName).Status -ne 'Running') { 
+        Start-Sleep -Seconds 5
+    }
+    Write-Host "$ServiceName started"
 
 }
 

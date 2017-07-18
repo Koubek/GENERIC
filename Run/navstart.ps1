@@ -1,13 +1,15 @@
+Write-Host "Initializing..."
+
 . (Join-Path $PSScriptRoot "HelperFunctions.ps1")
 . (Join-Path $PSScriptRoot "New-SelfSignedCertificateEx.ps1")
-
 . (Get-MyFilePath "SetupVariables.ps1")
 
-if ($databaseInstance -eq "Default") { $databaseInstance = "" }
 $windowsAuth = ($env:WindowsAuth -eq "Y")
 $myPath = Join-Path $PSScriptRoot "my"
 $navDvdPath = "C:\NAVDVD"
-$ServiceName = 'MicrosoftDynamicsNavServer$NAV'
+
+$NavServiceName = 'MicrosoftDynamicsNavServer$NAV'
+$SqlServiceName = 'MSSQLSERVER'
 
 # This script is multi-purpose
 #
@@ -16,7 +18,6 @@ $ServiceName = 'MicrosoftDynamicsNavServer$NAV'
 # $runningGenericImage is true when running a generic image with NAVDVD on share
 # $runningSpecificImage is true when running a specific image (which had buildingImage set true true during image build)
 #
-$buildingImage = ($env:buildingImage -eq "Y")
 if ($buildingImage) { Write-Host "Building Image" }
 
 $restartingInstance = $false
@@ -38,10 +39,10 @@ if ($buildingImage + $restartingInstance + $runningGenericImage + $runningSpecif
     exit 1
 }
 
-if ($databaseServer -eq 'localhost') {
+if ($databaseServer -eq 'localhost' -and $databaseInstance -eq '') {
     # start the SQL Server
     Write-Host "Starting Local SQL Server"
-    Start-Service -Name 'MSSQLSERVER' -ErrorAction Ignore
+    Start-Service -Name $SqlServiceName -ErrorAction Ignore
 }
 
 if ($windowsAuth) {
@@ -83,10 +84,10 @@ if ($runningGenericImage -or $runningSpecificImage)
 # Copy Service Tier in place if we are running a Generic Image or Building a specific image
 if ($runningGenericImage -or $buildingImage) {
     Write-Host "Copy Service Tier"
-    Copy-Item -Path "C:\NAVDVD\ServiceTier\Program Files" -Destination "C:\" -Recurse -Force
+    Copy-Item -Path "$NavDvdPath\ServiceTier\Program Files" -Destination "C:\" -Recurse -Force
 
     Write-Host "Copy Web Client"
-    Copy-Item -Path "C:\NAVDVD\WebClient\Microsoft Dynamics NAV" -Destination "C:\Program Files\" -Recurse -Force
+    Copy-Item -Path "$NavDvdPath\WebClient\Microsoft Dynamics NAV" -Destination "C:\Program Files\" -Recurse -Force
     Copy-Item -Path "$navDvdPath\WebClient\inetpub" -Destination $PSSCriptRoot -Recurse -Force
 
     Write-Host "Copy RTC Files"
@@ -101,12 +102,12 @@ $WebClientFolder = (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Web Clie
 Import-Module "$ServiceTierFolder\Microsoft.Dynamics.Nav.Management.psm1"
 
 if ($restartingInstance) {
-    WaitForService -ServiceName $ServiceName
+    WaitForService -ServiceName $NavServiceName
 }
 
 # Database
 if (!$restartingInstance) {
-    if ($databaseServer -ne "_" -and $databaseInstance -ne "_" -and $databaseName -ne "_") {
+    if ($databaseServer -ne "" -and $databaseName -ne "") {
         
         # Specific images will have database settings - no DB restore
         Write-Host "Using Database Connection $DatabaseServer\$DatabaseInstance [$DatabaseName]"
@@ -118,10 +119,10 @@ if (!$restartingInstance) {
             exit 1
         }
 
-        if ($databaseServer -ne "_" -or $databaseInstance -ne "_" -or $databaseName -ne "_") {
+        if ($databaseServer -ne "" -or $databaseName -ne "") {
         	Write-Error "ERROR: Database Connection only partly specified."
             Write-Error "Specifying Database settings to an existing database requires all parameters to be set"
-            Write-Error "DatabaseServer, DatabaseInstance and DatabaseName"
+            Write-Error "DatabaseServer, DatabaseName and optionally DatabaseInstance"
             exit 1
         }
     
@@ -131,7 +132,7 @@ if (!$restartingInstance) {
         $databaseInstance = ""
         $databaseName = ""
         
-        if ($bakfile -eq "_") 
+        if ($bakfile -eq "") 
         {
             Write-Host "Using CRONUS Demo Database"
         
@@ -209,7 +210,7 @@ if ($runningGenericImage -or $runningSpecificImage) {
 
     if ($databaseServer -ne 'localhost' -or $databaseInstance -ne '') {
         Write-Host "Stopping local SQL Server"
-        Stop-Service -Name 'MSSQLSERVER' -ErrorAction Ignore
+        Stop-Service -Name $SqlServiceName -ErrorAction Ignore
     }
 
     $hostname = hostname
@@ -228,15 +229,15 @@ if ($runningGenericImage -or $buildingImage) {
     # Create NAV Service
     Write-Host "Create NAV Service Tier"
     $serviceCredentials = New-Object System.Management.Automation.PSCredential ("NT AUTHORITY\SYSTEM", (new-object System.Security.SecureString))
-    New-Service -Name $ServiceName -BinaryPathName """$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe"" `$NAV /config ""$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe.config""" -DisplayName '"Microsoft Dynamics NAV Server [NAV]' -Description 'NAV' -StartupType auto -Credential $serviceCredentials -DependsOn @("HTTP") | Out-Null
+    New-Service -Name $NavServiceName -BinaryPathName """$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe"" `$NAV /config ""$ServiceTierFolder\Microsoft.Dynamics.Nav.Server.exe.config""" -DisplayName '"Microsoft Dynamics NAV Server [NAV]' -Description 'NAV' -StartupType auto -Credential $serviceCredentials -DependsOn @("HTTP") | Out-Null
     Write-Host "Start NAV Service Tier"
-    Start-Service -Name $ServiceName
+    Start-Service -Name $NavServiceName
 }
 
 if ($runningSpecificImage) {
     # Restart NAV Service
     Write-Host "Restart NAV Service Tier"
-    Restart-Service -Name $ServiceName
+    Restart-Service -Name $NavServiceName
 }
 
 . (Get-MyFilePath "SetupLicense.ps1")
@@ -290,10 +291,7 @@ if ($runningGenericImage -or $runningSpecificImage) {
     . (Get-MyFilePath "AdditionalSetup.ps1")
 }
 
-if ($buildingImage) {
-    # NAVDVD content not needed after building specific image
-    Remove-Item -Path $navDvdPath -Recurse -Force
-} else {
+if (!$buildingImage) {
     $ip = (Get-NetIPAddress | Where-Object { $_.AddressFamily -eq "IPv4" -and $_.IPAddress -ne "127.0.0.1" })[0].IPAddress
     Write-Host "Container IP Address: $ip"
     Write-Host "Container Hostname  : $hostname"

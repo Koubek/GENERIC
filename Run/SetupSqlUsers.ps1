@@ -1,9 +1,9 @@
-﻿if (($password -ne "_") -and (!$windowsAuth)) {
+﻿if ($password -ne "_") {
     $sqlcmd = "ALTER LOGIN sa with password=" +"'" + $password + "'" + ";ALTER LOGIN sa ENABLE;"
     & sqlcmd -Q $sqlcmd
 }
 
-if (($username -ne "_") -and ($username -ne "sa") -and ($windowsAuth)) {
+if ($username.Contains('\') -and $windowsAuth) {
     $sqlcmd = 
         "IF NOT EXISTS 
             (SELECT name  

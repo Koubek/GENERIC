@@ -1,19 +1,19 @@
 if ($auth -eq "Windows") {
-    if (($password -ne "_") -and ($username -ne "_")) {
+    if (($password -ne "") -and ($username -ne "")) {
         New-LocalUser -AccountNeverExpires -FullName $username -Name $username -Password (ConvertTo-SecureString -AsPlainText -String $password -Force) -ErrorAction Ignore | Out-Null
         Add-LocalGroupMember -Group administrators -Member $username -ErrorAction Ignore
     }
-    if ($username -ne "_") {
+    if ($username -ne "") {
         if (!(Get-NAVServerUser -ServerInstance NAV | Where-Object { $_.UserName.EndsWith("'\$username") })) {
             New-NavServerUser -ServerInstance NAV -WindowsAccount $username
             New-NavServerUserPermissionSet -ServerInstance NAV -WindowsAccount $username -PermissionSetId SUPER
         }
     }
 } else {
-    if ($username -eq "_") { $username = "admin" }
+    if ($username -eq "") { $username = "admin" }
     if (!(Get-NAVServerUser -ServerInstance NAV | Where-Object { $_.UserName -eq $username })) {
         $pwd = $password
-        if ($pwd -eq "_") { $pwd = Get-RandomPassword }
+        if ($pwd -eq "") { $pwd = Get-RandomPassword }
         New-NavServerUser -ServerInstance NAV -Username $username -Password (ConvertTo-SecureString -String $pwd -AsPlainText -Force)
         New-NavServerUserPermissionSet -ServerInstance NAV -username $username -PermissionSetId SUPER
         Write-Host "NAV Admin Username  : $username"

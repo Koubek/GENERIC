@@ -2,7 +2,7 @@
 $licenseOk = $false
 if ($restartingInstance) {
     $licenseOk = $true
-} elseif ($licensefile -eq "_") {
+} elseif ($licensefile -eq "") {
     Write-Host "Using CRONUS license file"
     $licensefile = "$ServiceTierFolder\Cronus.flf"
     if ($runningSpecificImage) { 

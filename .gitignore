@@ -1,2 +1,3 @@
 *.msi
 **/NAVDVD/*
+*.dll

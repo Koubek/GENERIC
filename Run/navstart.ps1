@@ -57,6 +57,10 @@ if ($windowsAuth) {
     $webClientPort = 443
 }
 
+if ($runningGenericImage -or $runningSpecificImage) {
+    Write-Host "Using $auth Authentication"
+}
+
 if ($runningGenericImage -or $buildingImage) {
     if (!(Test-Path $navDvdPath -PathType Container)) {
         Write-Error "ERROR: NAVDVD folder not found"
@@ -72,13 +76,17 @@ if ($runningSpecificImage -and $Accept_eula -ne "Y")
     exit 1 
 }
 
-if ($runningGenericImage -or $runningSpecificImage) 
+if ($runningGenericImage -or $buildingImage) 
 {
-    Write-Host "Using $auth Authentication"
-
-    # re-installing Url rewrite when running the image means that we can avoid iisreset (which is much slower)
     Write-Host "Installing Url Rewrite"
-    start-process C:\Install\rewrite_amd64.msi -ArgumentList "/quiet /qn /passive" -Wait
+    start-process "$NavDvdPath\Prerequisite Components\IIS URL Rewrite Module\rewrite_2.0_rtw_x64.msi" -ArgumentList "/quiet /qn /passive" -Wait
+
+    Write-Host "Installing ReportViewer"
+    start-process "$NavDvdPath\Prerequisite Components\Microsoft Report Viewer\SQLSysClrTypes.msi" -ArgumentList "/quiet /qn /passive" -Wait
+    start-process "$NavDvdPath\Prerequisite Components\Microsoft Report Viewer\ReportViewer.msi" -ArgumentList "/quiet /qn /passive" -Wait
+
+    Write-Host "Installing OpenXML"
+    start-process "$NavDvdPath\Prerequisite Components\Open XML SDK 2.5 for Microsoft Office\OpenXMLSDKv25.msi" -ArgumentList "/quiet /qn /passive" -Wait
 }
 
 # Copy Service Tier in place if we are running a Generic Image or Building a specific image
@@ -98,6 +106,13 @@ if ($runningGenericImage -or $buildingImage) {
 $ServiceTierFolder = (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Service").FullName
 $RoleTailoredClientFolder = (Get-Item "C:\Program Files (x86)\Microsoft Dynamics NAV\*\RoleTailored Client").FullName
 $WebClientFolder = (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Web Client")[0]
+
+if (!(Test-Path (Join-Path $RoleTailoredClientFolder 'hlink.dll'))) {
+    Copy-Item -Path (Join-Path $PSScriptRoot 'Install\hlink.dll') -Destination (Join-Path $RoleTailoredClientFolder 'hlink.dll')
+}
+if (!(Test-Path (Join-Path $ServiceTierFolder 'hlink.dll'))) {
+    Copy-Item -Path (Join-Path $PSScriptRoot 'Install\hlink.dll') -Destination (Join-Path $ServiceTierFolder 'hlink.dll')
+}
 
 Import-Module "$ServiceTierFolder\Microsoft.Dynamics.Nav.Management.psm1"
 

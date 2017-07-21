@@ -1,14 +1,19 @@
-$installPath = Join-Path $PSScriptRoot 'Install'
+$registry = "navdocker.azurecr.io/"
+$registry = ""
+
+$installPath = Join-Path $PSScriptRoot 'Run\Install'
 if (!(Test-Path $installPath))
 {
     New-Item -ItemType Directory -Force $installPath
 }
 
-if (!(Test-Path (Join-Path $installPath 'rewrite_amd64.msi')))
+$hlinkFile = Join-Path $installPath 'hlink.dll'
+if (!(Test-Path $hlinkFile ))
 {
-	(New-Object System.Net.WebClient).DownloadFile("http://go.microsoft.com/fwlink/?LinkID=615137", (Join-Path $installPath 'rewrite_amd64.msi.tmp'))
-	Rename-Item (Join-Path $installPath 'rewrite_amd64.msi.tmp') (Join-Path $installPath 'rewrite_amd64.msi')
+    Copy-Item -Path 'C:\Windows\SysWOW64\hlink.dll' -Destination $hlinkFile
 }
 
-docker build -t navdocker.azurecr.io/dynamics-nav-generic $PSScriptRoot
-docker push navdocker.azurecr.io/dynamics-nav-generic
+docker build -t "${registry}dynamics-nav-generic" $PSScriptRoot
+if ($registry -ne "") {
+    docker push "${registry}dynamics-nav-generic"
+}

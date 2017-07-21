@@ -1,4 +1,4 @@
-﻿if ($password -ne "_") {
+﻿if ($password -ne "") {
     $sqlcmd = "ALTER LOGIN sa with password=" +"'" + $password + "'" + ";ALTER LOGIN sa ENABLE;"
     & sqlcmd -Q $sqlcmd
 }

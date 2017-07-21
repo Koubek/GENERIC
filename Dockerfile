@@ -13,7 +13,6 @@ RUN Add-WindowsFeature Web-Server,web-AppInit,web-Asp-Net45,web-Windows-Auth,web
     Remove-Item c:\start.ps1; \
     Remove-Item c:\dockerfile
 
-COPY Install /Install/
 COPY Run /Run/
 
 HEALTHCHECK --interval=30s --timeout=10s CMD [ "powershell", ".\\Run\\HealthCheck.ps1" ]

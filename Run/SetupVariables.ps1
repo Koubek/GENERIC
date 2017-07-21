@@ -1,4 +1,7 @@
 ﻿$username = "$env:username"
+if ($username -eq "ContainerAdministrator") {
+    $username = ""
+}
 $password = "$env:password"
 $licensefile = "$env:licensefile"
 $bakfile = "$env:bakfile"

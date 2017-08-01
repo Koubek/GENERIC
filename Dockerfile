@@ -1,7 +1,5 @@
 FROM microsoft/mssql-server-windows-developer
 
-LABEL maintainer "Freddy Kristiansen"
-
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 
 # Install the prerequisites first to be able reuse the cache when changing only the scripts.
@@ -17,6 +15,6 @@ COPY Run /Run/
 
 HEALTHCHECK --interval=30s --timeout=10s CMD [ "powershell", ".\\Run\\HealthCheck.ps1" ]
 
-EXPOSE 1433 80 443 7045-7049
+EXPOSE 1433 80 8080 443 7045-7049
 
 CMD .\Run\start.ps1

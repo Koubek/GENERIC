@@ -1,4 +1,13 @@
-﻿if ($useSSL) {
-    Copy-Item -Path (Join-Path $PSScriptRoot "Certificate.cer") -Destination $httpPath
+﻿# INPUT
+#     $httpPath
+#     $runPath
+#     $certificateCerFile (optional)
+#     $servicesUseSSL (optional)
+#
+# OUTPUT
+#
+
+if ($certificateCerFile -and $servicesUseSSL) {
+    Copy-Item -Path $certificateCerFile -Destination $httpPath
 }
-Copy-Item -Path (Join-Path $PSScriptRoot "*.vsix") -Destination $httpPath
+Copy-Item -Path "$runPath\*.vsix" -Destination $httpPath

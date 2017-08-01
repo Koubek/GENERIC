@@ -1,8 +1,13 @@
-﻿# License file
+﻿# INPUT
+#     $serviceTierFolder
+#     $licenseFile (optional)
+#     $runningSpecificImage (optional)
+#
+# OUTPUT
+#
+
 $licenseOk = $false
-if ($restartingInstance) {
-    $licenseOk = $true
-} elseif ($licensefile -eq "") {
+if ($licensefile -eq "") {
     Write-Host "Using CRONUS license file"
     $licensefile = "$ServiceTierFolder\Cronus.flf"
     if ($runningSpecificImage) { 
@@ -12,7 +17,7 @@ if ($restartingInstance) {
     if ($licensefile.StartsWith("https://") -or $licensefile.StartsWith("http://"))
     {
         $licensefileurl = $licensefile
-        $licensefile = (Join-Path $PSScriptRoot "license.flf")
+        $licensefile = (Join-Path $runPath "license.flf")
         Write-Host "Downloading license file '$licensefileurl'"
         (New-Object System.Net.WebClient).DownloadFile($licensefileurl, $licensefile)
     } else {

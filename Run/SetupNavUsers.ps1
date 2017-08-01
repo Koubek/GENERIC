@@ -1,3 +1,11 @@
+# INPUT
+#     $auth
+#     $username (optional)
+#     $password (optional)
+#
+# OUTPUT
+#
+
 if ($auth -eq "Windows") {
     if (($password -ne "") -and ($username -ne "")) {
         New-LocalUser -AccountNeverExpires -FullName $username -Name $username -Password (ConvertTo-SecureString -AsPlainText -String $password -Force) -ErrorAction Ignore | Out-Null

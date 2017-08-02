@@ -298,6 +298,8 @@ if ($runningGenericImage -or $runningSpecificImage) {
         Write-Host "Create NAV Web Server Instance"
         New-NAVWebServerInstance -Server "localhost" -ClientServicesCredentialType $auth -ClientServicesPort 7046 -ServerInstance "NAV" -WebServerInstance "NAV"
 
+        Set-InClientVisualDesigner -NavWebServerInstance "NAV"
+
         # Give Everyone access to resources
         $ResourcesFolder = "$WebClientFolder".Replace('C:\Program Files\', 'C:\ProgramData\Microsoft\')
         $user = New-Object System.Security.Principal.NTAccount("NT AUTHORITY\Everyone")

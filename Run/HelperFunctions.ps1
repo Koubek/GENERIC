@@ -201,3 +201,35 @@ function Get-gMSAName
 
     return $gMSA
 }
+
+function Set-InClientVisualDesigner
+(    
+    [string]$NavWebServerInstance
+)
+{
+    $NAVWebConfigFile = Join-Path (Join-Path (Get-WWWRootPath) $NavWebServerInstance) "web.config"
+    if (Test-Path $NAVWebConfigFile)
+    {
+        Write-Host "Activating In-Client Visual Designer"
+
+        $NAVWebConfig = [xml](Get-Content $NAVWebConfigFile)
+        $designerKey = $NAVWebConfig.SelectSingleNode("//configuration/DynamicsNAVSettings/add[@key='designer']")
+        if ($designerkey) {
+            $designerkey.value = "true"
+        } else {
+            $addelm = $NAVWebConfig.CreateElement("add")
+            $keyatt = $NAVWebConfig.CreateAttribute("key")
+            $keyatt.Value = "designer"
+            $addelm.Attributes.Append($keyatt) | Out-Null
+            $valatt = $NAVWebConfig.CreateAttribute("value")
+            $valatt.Value = "true"
+            $addelm.Attributes.Append($valatt) | Out-Null
+            $NAVWebConfig.configuration.DynamicsNAVSettings.AppendChild($addelm) | Out-Null
+        }
+        $NAVWebConfig.Save($NAVWebConfigFile)
+    } 
+    else
+    {
+        Write-Verbose "In-Client Visual Designer has not been activated as $NAVWebConfigFile does not exist"
+    }
+}

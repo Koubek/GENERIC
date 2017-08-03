@@ -4,6 +4,7 @@
 # OUTPUT
 #     $certificateCerFile (if self signed)
 #     $certificateThumbprint
+#     $dnsIdentity
 #
 
 Write-Host "Create Self Signed Certificate"
@@ -18,3 +19,4 @@ $certificateThumbprint = $cert.Thumbprint
 Write-Host "Self Signed Certificate Thumbprint $certificateThumbprint"
 Import-PfxCertificate -Password $SecurePfxPassword -FilePath $certificatePfxFile -CertStoreLocation "cert:\localMachine\my" | Out-Null
 Import-PfxCertificate -Password $SecurePfxPassword -FilePath $certificatePfxFile -CertStoreLocation "cert:\localMachine\Root" | Out-Null
+$dnsidentity = $cert.GetNameInfo('SimpleName',$false)

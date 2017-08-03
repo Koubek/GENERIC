@@ -1,7 +1,21 @@
 Write-Host "Initializing..."
+Set-ExecutionPolicy Unrestricted
 
-. (Join-Path $PSScriptRoot "HelperFunctions.ps1")
-. (Join-Path $PSScriptRoot "New-SelfSignedCertificateEx.ps1")
+$runPath = "c:\Run"
+$myPath = Join-Path $runPath "my"
+$navDvdPath = "C:\NAVDVD"
+
+function Get-MyFilePath([string]$FileName)
+{
+    if ((Test-Path $myPath -PathType Container) -and (Test-Path (Join-Path $myPath $FileName) -PathType Leaf)) {
+        (Join-Path $myPath $FileName)
+    } else {
+        (Join-Path $runPath $FileName)
+    }
+}
+
+. (Get-MyFilePath "HelperFunctions.ps1")
+. (Get-MyFilePath "New-SelfSignedCertificateEx.ps1")
 . (Get-MyFilePath "SetupVariables.ps1")
 
 # Ensure correct casing
@@ -126,11 +140,13 @@ if ($runningGenericImage -or $buildingImage) {
 
     Write-Host "Copy RTC Files"
     Copy-Item -Path "$navDvdPath\RoleTailoredClient\program files\Microsoft Dynamics NAV" -Destination "C:\Program Files (x86)\" -Recurse -Force
+    Copy-Item -Path "$navDvdPath\ClickOnceInstallerTools\Program Files\Microsoft Dynamics NAV" -Destination "C:\Program Files (x86)\" -Recurse -Force
     Copy-Item -Path "$navDvdPath\*.vsix" -Destination $runPath
 }
 
 $serviceTierFolder = (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Service").FullName
 $roleTailoredClientFolder = (Get-Item "C:\Program Files (x86)\Microsoft Dynamics NAV\*\RoleTailored Client").FullName
+$clickOnceInstallerToolsFolder = (Get-Item "C:\Program Files (x86)\Microsoft Dynamics NAV\*\ClickOnce Installer Tools").FullName
 $WebClientFolder = (Get-Item "C:\Program Files\Microsoft Dynamics NAV\*\Web Client")[0]
 
 if (!(Test-Path (Join-Path $roleTailoredClientFolder 'hlink.dll'))) {
@@ -281,7 +297,7 @@ if ($runningGenericImage -or $runningSpecificImage) {
             New-NAVWebServerInstance -PublishFolder $publishFolder -WebServerInstance "NAV" -Server "localhost" -ServerInstance "NAV" -ClientServicesCredentialType $Auth -ClientServicesPort "7046" -WebSitePort $webClientPort -AddFirewallException $false
         }
 
-        $navsettingsFile = "c:\inetpub\wwwroot\nav\navsettings.json"
+        $navsettingsFile = Join-Path $wwwRootPath "nav\navsettings.json"
         $config = Get-Content $navSettingsFile | ConvertFrom-Json
         Add-Member -InputObject $config.NAVWebSettings -NotePropertyName "Designer" -NotePropertyValue "true" -ErrorAction SilentlyContinue
         $config.NAVWebSettings.Designer = $true
@@ -309,8 +325,9 @@ if ($runningGenericImage -or $runningSpecificImage) {
         $acl.AddAccessRule($rule)
         Set-Acl -Path $ResourcesFolder $acl
         $acl = $null
-    }
 
+        
+    }
 
     Write-Host "Create http download site"
     New-Item -Path $httpPath -ItemType Directory | Out-Null
@@ -319,6 +336,11 @@ if ($runningGenericImage -or $runningSpecificImage) {
     $webConfigFile = Join-Path $httpPath "web.config"
     Copy-Item -Path (Join-Path $runPath "web.config") -Destination $webConfigFile
     get-item -Path $webConfigFile | % { $_.Attributes = "Hidden" }
+
+    if ($clickOnce -eq "Y") {
+        Write-Host "Create ClickOnce Manifest"
+        . (Get-MyFilePath "SetupClickOnce.ps1")
+    }
 
     . (Get-MyFilePath "SetupFileShare.ps1")
     . (Get-MyFilePath "SetupSqlUsers.ps1")
@@ -336,6 +358,9 @@ if (!$buildingImage) {
         Write-Host "Dev. Server         : $protocol$hostname"
         Write-Host "Dev. ServerInstance : NAV"
     }
+    if (Test-Path -Path "$httpPath/NAV" -PathType Container) {
+        Write-Host "ClickOnce Manifest  : http://${hostname}:8080/NAV"
+    }
 
     . (Get-MyFilePath "AdditionalOutput.ps1")
 
@@ -345,5 +370,6 @@ if (!$buildingImage) {
         Write-Host "http://${hostname}:8080/$($_.Name)"
     }
     Write-Host 
+
     Write-Host "Ready for connections!"
 }

@@ -12,7 +12,7 @@ if ($auth -eq "Windows") {
         Add-LocalGroupMember -Group administrators -Member $username -ErrorAction Ignore
     }
     if ($username -ne "") {
-        if (!(Get-NAVServerUser -ServerInstance NAV | Where-Object { $_.UserName.EndsWith("'\$username") })) {
+        if (!(Get-NAVServerUser -ServerInstance NAV | Where-Object { $_.UserName.EndsWith("\$username") -or $_.UserName -eq $username })) {
             New-NavServerUser -ServerInstance NAV -WindowsAccount $username
             New-NavServerUserPermissionSet -ServerInstance NAV -WindowsAccount $username -PermissionSetId SUPER
         }

@@ -19,19 +19,6 @@ function Get-RandomPassword {
      (randomchar $numbers))
 }
 
-function Get-MyFilePath
-(
-    [string]$FileName
-)
-{
-    $myPath = Join-Path $PSScriptRoot "my"
-    if ((Test-Path $myPath -PathType Container) -and (Test-Path (Join-Path $myPath $FileName) -PathType Leaf)) {
-        (Join-Path $myPath $FileName)
-    } else {
-        (Join-Path $PSScriptRoot $FileName)
-    }
-}
-
 function WaitForService
 (
     [string]$ServiceName
@@ -79,7 +66,7 @@ function New-NavWebSite
     $appPool.enable32BitAppOnWin64 = "false"
     $appPool.recycling.logEventOnRecycle = "Time,Requests,Schedule,Memory,IsapiUnhealthy,OnDemand,ConfigChange,PrivateMemory"
     $appPool.processModel.identityType = "ApplicationPoolIdentity" 
-    $appPool.processModel.loadUserProfile = "true"
+    $appPool.processModel.loadUserProfile = "false"
     $appPool.processModel.idleTimeout = "1.00:00:00"
     $appPool.recycling.logEventOnRecycle = "Time,Requests,Schedule,Memory,IsapiUnhealthy,OnDemand,ConfigChange,PrivateMemory"
     $appPool | Set-Item

@@ -351,7 +351,7 @@ if (!$buildingImage) {
     $ip = (Get-NetIPAddress | Where-Object { $_.AddressFamily -eq "IPv4" -and $_.IPAddress -ne "127.0.0.1" })[0].IPAddress
     Write-Host "Container IP Address: $ip"
     Write-Host "Container Hostname  : $hostname"
-    Write-Host "Web Client          : $protocol$hostname/NAV/WebClient/"
+    Write-Host "Web Client          : $publicWebBaseUrl"
 
     if (Test-Path -Path (Join-Path $httpPath "*.vsix")) {
         Write-Host "Dev. Server         : $protocol$hostname"

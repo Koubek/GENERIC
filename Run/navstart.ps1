@@ -1,5 +1,4 @@
 Write-Host "Initializing..."
-Set-ExecutionPolicy Unrestricted
 
 $runPath = "c:\Run"
 $myPath = Join-Path $runPath "my"

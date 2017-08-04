@@ -19,3 +19,4 @@ if ($auth -eq "") {
         $auth = "Windows"
     }
 }
+$clickOnce = "$env:ClickOnce"
